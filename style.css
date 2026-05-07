@@ -200,24 +200,31 @@ nav {
 
 /* Contact Section */
 .contact-info {
-    max-width: 600px;
-    margin: 0 auto;
-    padding: 3rem;
+    text-align: left;
+    padding: 2rem;
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-    text-align: center;
+}
+
+.map-container {
+    width: 100%;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
 }
 
 .contact-info p {
-    margin-bottom: 1.5rem;
-    font-size: 1.2rem;
+    margin-bottom: 1.2rem;
+    font-size: 1.1rem;
     border-bottom: 1px solid #edf2f7;
-    padding-bottom: 1rem;
+    padding-bottom: 0.8rem;
 }
 
 .contact-info strong {
     color: var(--primary-color);
+    display: inline-block;
+    width: 100px;
 }
 
 /* Footer */
