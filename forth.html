@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forth - กระดานฝากข้อความ (Global) | TPP LAW</title>
+    <title>Forth - กระดานฝากข้อความ (Auth) | TPP LAW</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&family=Sarabun:wght@300;400&display=swap" rel="stylesheet">
     <style>
@@ -24,7 +24,7 @@
 </head>
 <body class="min-h-screen">
 
-    <!-- Login Overlay -->
+    <!-- Login Overlay (Regular User: 1234) -->
     <div id="login-overlay" class="fixed inset-0 bg-slate-900 z-[2000] flex items-center justify-center p-6">
         <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
             <div class="mb-6">
@@ -35,8 +35,22 @@
                 <p class="text-slate-500 text-sm mt-2">เพื่อเข้าสู่หน้ากระดานฝากข้อความ</p>
             </div>
             <input type="password" id="password-input" class="w-full px-4 py-3 rounded-xl border border-slate-200 mb-4 text-center text-2xl tracking-[0.5em] focus:ring-2 focus:ring-amber-500 outline-none" placeholder="****">
-            <button onclick="checkPassword()" class="w-full gold-bg text-slate-900 font-bold py-3 rounded-xl hover:bg-amber-500 transition shadow-lg">ยืนยันรหัสผ่าน</button>
-            <p id="error-msg" class="text-red-500 text-sm mt-4 hidden">รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่</p>
+            <button onclick="checkUserPassword()" class="w-full gold-bg text-slate-900 font-bold py-3 rounded-xl hover:bg-amber-500 transition shadow-lg mb-4">เข้าใช้งานทั่วไป</button>
+            <button onclick="toggleAdminLogin(true)" class="text-slate-400 text-xs hover:text-slate-600 transition underline">เข้าสู่ระบบ Admin</button>
+            <p id="error-msg" class="text-red-500 text-sm mt-4 hidden">รหัสผ่านไม่ถูกต้อง</p>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/50 z-[3000] flex items-center justify-center p-6 hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full">
+            <h3 class="text-xl font-bold navy-text mb-4">Admin Login</h3>
+            <div class="space-y-4">
+                <input type="email" id="admin-email" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" placeholder="Email" value="tphuaksa@gmail.com">
+                <input type="password" id="admin-password" class="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none" placeholder="Password">
+                <button onclick="handleAdminLogin()" id="btn-admin-login" class="w-full navy-bg text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition">ล็อกอินแอดมิน</button>
+                <button onclick="toggleAdminLogin(false)" class="w-full text-slate-500 text-sm py-2">ยกเลิก</button>
+            </div>
         </div>
     </div>
 
@@ -46,26 +60,18 @@
             <div class="container mx-auto px-6 flex justify-between items-center">
                 <div class="flex items-center space-x-2">
                     <span class="text-xl font-bold">TPP <span class="gold-text">FORTH</span></span>
+                    <span id="admin-badge" class="hidden bg-red-500 text-[10px] px-2 py-1 rounded ml-2 uppercase font-bold">Admin</span>
                 </div>
-                <a href="index.html" class="text-sm hover:text-amber-400 transition">กลับหน้าหลัก</a>
+                <div class="flex items-center space-x-4">
+                    <button id="btn-logout" onclick="handleLogout()" class="hidden text-xs text-red-300 hover:text-red-500 transition">Logout Admin</button>
+                    <a href="index.html" class="text-sm hover:text-amber-400 transition">กลับหน้าหลัก</a>
+                </div>
             </div>
         </nav>
 
         <main class="container mx-auto px-6 py-12 max-w-2xl">
-            <!-- Setup Warning (Hidden by default) -->
-            <div id="setup-warning" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 mb-8 rounded-r-xl">
-                <div class="flex">
-                    <div class="flex-shrink-0"><i class="fas fa-exclamation-triangle text-amber-500"></i></div>
-                    <div class="ml-3">
-                        <p class="text-sm text-amber-700">
-                            <b>ต้องตั้งค่า Firebase:</b> กรุณาแก้ไฟล์ HTML เพื่อใส่ API Key ของคุณ ข้อความถึงจะแชร์ข้ามเครื่องได้ครับ
-                        </p>
-                    </div>
-                </div>
-            </div>
-
             <div class="bg-white rounded-3xl shadow-xl p-8 mb-8 border border-slate-100">
-                <h1 class="text-3xl font-bold navy-text mb-6">ฝากข้อความ (Global)</h1>
+                <h1 class="text-3xl font-bold navy-text mb-6">ฝากข้อความ</h1>
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-semibold text-slate-700 mb-2">ชื่อของคุณ</label>
@@ -75,56 +81,56 @@
                         <label class="block text-sm font-semibold text-slate-700 mb-2">ข้อความ</label>
                         <textarea id="user-msg" rows="4" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 outline-none" placeholder="พิมพ์ข้อความที่นี่..."></textarea>
                     </div>
-                    <button id="btn-post" onclick="postMessage()" class="w-full navy-bg text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition shadow-xl flex items-center justify-center disabled:opacity-50">
+                    <button id="btn-post" onclick="postMessage()" class="w-full navy-bg text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition shadow-xl flex items-center justify-center">
                         <i class="fas fa-paper-plane mr-2"></i> ส่งข้อความ
                     </button>
                 </div>
             </div>
 
-            <div id="loading-spinner" class="flex justify-center py-8">
-                <div class="loader"></div>
-            </div>
-
-            <div id="message-list" class="space-y-4">
-                <!-- Messages will appear here -->
-            </div>
+            <div id="loading-spinner" class="flex justify-center py-8"><div class="loader"></div></div>
+            <div id="message-list" class="space-y-4"></div>
         </main>
     </div>
 
-    <!-- FontAwesome -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, onValue, remove, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // --- ตั้งค่า Firebase ของคุณที่นี่ ---
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyDNfkNuiHP6IWnBWhjgrO5Cr1ogqr5vORc",
+            authDomain: "tpp-law.firebaseapp.com",
+            databaseURL: "https://tpp-law-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "tpp-law",
+            storageBucket: "tpp-law.firebasestorage.app",
+            messagingSenderId: "964367025099",
+            appId: "1:964367025099:web:01dccb5abbd48b0fec2c4e"
         };
-        // ---------------------------------
 
-        let db;
-        const isSetup = firebaseConfig.apiKey !== "YOUR_API_KEY";
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
 
-        if (isSetup) {
-            const app = initializeApp(firebaseConfig);
-            db = getDatabase(app);
-        } else {
-            document.getElementById('setup-warning').classList.remove('hidden');
-            document.getElementById('loading-spinner').classList.add('hidden');
-        }
-
+        let currentUser = null;
         const USER_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // 1234
-        const ADMIN_HASH = "fe2592b42a727e977f055947385b709cc82b16b9a87f88c6abf3900d65d0cdc3"; // 4321
-        let isAdmin = false;
+
+        // Listen for Auth changes
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                document.getElementById('admin-badge').classList.remove('hidden');
+                document.getElementById('btn-logout').classList.remove('hidden');
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('admin-modal').classList.add('hidden');
+                document.getElementById('main-content').classList.remove('hidden');
+                loadMessages();
+            } else {
+                document.getElementById('admin-badge').classList.add('hidden');
+                document.getElementById('btn-logout').classList.add('hidden');
+            }
+        });
 
         async function hashPassword(password) {
             const encoder = new TextEncoder();
@@ -132,30 +138,46 @@
             const hashBuffer = await crypto.subtle.digest('SHA-256', data);
             return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
-        
-        window.checkPassword = async function() {
-            const inputField = document.getElementById('password-input');
-            const inputHash = await hashPassword(inputField.value);
-            
-            if (inputHash === USER_HASH || inputHash === ADMIN_HASH) {
-                isAdmin = (inputHash === ADMIN_HASH);
+
+        window.checkUserPassword = async function() {
+            const input = document.getElementById('password-input').value;
+            const inputHash = await hashPassword(input);
+            if (inputHash === USER_HASH) {
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('main-content').classList.remove('hidden');
-                if (isSetup) loadMessages();
+                loadMessages();
             } else {
                 document.getElementById('error-msg').classList.remove('hidden');
-                inputField.value = '';
             }
         };
 
+        window.toggleAdminLogin = function(show) {
+            document.getElementById('admin-modal').classList.toggle('hidden', !show);
+        };
+
+        window.handleAdminLogin = function() {
+            const email = document.getElementById('admin-email').value;
+            const pass = document.getElementById('admin-password').value;
+            const btn = document.getElementById('btn-admin-login');
+            btn.disabled = true;
+            btn.innerText = "กำลังเข้าสู่ระบบ...";
+
+            signInWithEmailAndPassword(auth, email, pass)
+                .catch(err => {
+                    alert('ล็อกอินไม่สำเร็จ: ' + err.message);
+                    btn.disabled = false;
+                    btn.innerText = "ล็อกอินแอดมิน";
+                });
+        };
+
+        window.handleLogout = function() {
+            signOut(auth).then(() => location.reload());
+        };
+
         window.postMessage = function() {
-            if (!isSetup) { alert('กรุณาตั้งค่า Firebase ก่อนครับ'); return; }
             const name = document.getElementById('user-name').value.trim();
             const msg = document.getElementById('user-msg').value.trim();
             if (!name || !msg) return alert('กรุณากรอกให้ครบ');
-
-            const btn = document.getElementById('btn-post');
-            btn.disabled = true;
 
             push(ref(db, 'messages'), {
                 name: name,
@@ -165,26 +187,19 @@
             }).then(() => {
                 document.getElementById('user-name').value = '';
                 document.getElementById('user-msg').value = '';
-                btn.disabled = false;
-            }).catch(err => {
-                alert('เกิดข้อผิดพลาด: ' + err.message);
-                btn.disabled = false;
             });
         };
 
         window.deleteMessage = function(id) {
             if (!confirm('ยืนยันการลบ?')) return;
-            remove(ref(db, 'messages/' + id));
+            remove(ref(db, 'messages/' + id)).catch(err => alert('ไม่มีสิทธิ์ลบ: ' + err.message));
         };
 
         function loadMessages() {
-            const messagesRef = ref(db, 'messages');
-            onValue(messagesRef, (snapshot) => {
+            onValue(ref(db, 'messages'), (snapshot) => {
                 const data = snapshot.val();
                 const messages = [];
-                for (let id in data) {
-                    messages.unshift({ id, ...data[id] });
-                }
+                for (let id in data) { messages.unshift({ id, ...data[id] }); }
                 messages.sort((a, b) => b.timestamp - a.timestamp);
                 renderMessages(messages);
                 document.getElementById('loading-spinner').classList.add('hidden');
@@ -199,7 +214,7 @@
                         <h4 class="font-bold navy-text">${escapeHtml(m.name)}</h4>
                         <div class="flex items-center space-x-3">
                             <span class="text-[10px] text-slate-400">${m.date}</span>
-                            ${isAdmin ? `<button onclick="deleteMessage('${m.id}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>` : ''}
+                            ${currentUser ? `<button onclick="deleteMessage('${m.id}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>` : ''}
                         </div>
                     </div>
                     <p class="text-slate-600 sarabun leading-relaxed">${escapeHtml(m.text)}</p>
@@ -213,7 +228,7 @@
             return div.innerHTML;
         }
 
-        document.getElementById('password-input').addEventListener('keypress', e => { if (e.key === 'Enter') window.checkPassword(); });
+        document.getElementById('password-input').addEventListener('keypress', e => { if (e.key === 'Enter') window.checkUserPassword(); });
     </script>
 </body>
 </html>
