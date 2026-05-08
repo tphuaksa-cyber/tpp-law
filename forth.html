@@ -98,16 +98,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDNfkNuiHP6IWnBWhjgrO5Cr1ogqr5vORc",
-            authDomain: "tpp-law.firebaseapp.com",
-            databaseURL: "https://tpp-law-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "tpp-law",
-            storageBucket: "tpp-law.firebasestorage.app",
-            messagingSenderId: "964367025099",
-            appId: "1:964367025099:web:01dccb5abbd48b0fec2c4e"
-        };
+        import { firebaseConfig } from "./firebase-config.js";
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
