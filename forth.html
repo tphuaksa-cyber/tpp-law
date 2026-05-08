@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forth - กระดานฝากข้อความ | TPP LAW</title>
+    <title>Forth - กระดานฝากข้อความ (Global) | TPP LAW</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&family=Sarabun:wght@300;400&display=swap" rel="stylesheet">
     <style>
@@ -11,6 +11,15 @@
         .navy-bg { background-color: #0A192F; }
         .gold-text { color: #D4AF37; }
         .gold-bg { background-color: #D4AF37; }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #D4AF37;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="min-h-screen">
@@ -31,7 +40,7 @@
         </div>
     </div>
 
-    <!-- Main Content (Hidden by default) -->
+    <!-- Main Content -->
     <div id="main-content" class="hidden">
         <nav class="navy-bg text-white py-4 shadow-lg">
             <div class="container mx-auto px-6 flex justify-between items-center">
@@ -43,8 +52,20 @@
         </nav>
 
         <main class="container mx-auto px-6 py-12 max-w-2xl">
+            <!-- Setup Warning (Hidden by default) -->
+            <div id="setup-warning" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 mb-8 rounded-r-xl">
+                <div class="flex">
+                    <div class="flex-shrink-0"><i class="fas fa-exclamation-triangle text-amber-500"></i></div>
+                    <div class="ml-3">
+                        <p class="text-sm text-amber-700">
+                            <b>ต้องตั้งค่า Firebase:</b> กรุณาแก้ไฟล์ HTML เพื่อใส่ API Key ของคุณ ข้อความถึงจะแชร์ข้ามเครื่องได้ครับ
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <div class="bg-white rounded-3xl shadow-xl p-8 mb-8 border border-slate-100">
-                <h1 class="text-3xl font-bold navy-text mb-6">ฝากข้อความ</h1>
+                <h1 class="text-3xl font-bold navy-text mb-6">ฝากข้อความ (Global)</h1>
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-semibold text-slate-700 mb-2">ชื่อของคุณ</label>
@@ -54,10 +75,14 @@
                         <label class="block text-sm font-semibold text-slate-700 mb-2">ข้อความ</label>
                         <textarea id="user-msg" rows="4" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 outline-none" placeholder="พิมพ์ข้อความที่นี่..."></textarea>
                     </div>
-                    <button onclick="postMessage()" class="w-full navy-bg text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition shadow-xl flex items-center justify-center">
+                    <button id="btn-post" onclick="postMessage()" class="w-full navy-bg text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition shadow-xl flex items-center justify-center disabled:opacity-50">
                         <i class="fas fa-paper-plane mr-2"></i> ส่งข้อความ
                     </button>
                 </div>
+            </div>
+
+            <div id="loading-spinner" class="flex justify-center py-8">
+                <div class="loader"></div>
             </div>
 
             <div id="message-list" class="space-y-4">
@@ -69,99 +94,112 @@
     <!-- FontAwesome -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 
-    <script>
-        // SHA-256 hashes: 
-        // 1234 -> 03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4
-        // 4321 -> fe2592b42a727e977f055947385b709cc82b16b9a87f88c6abf3900d65d0cdc3
-        const USER_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4";
-        const ADMIN_HASH = "fe2592b42a727e977f055947385b709cc82b16b9a87f88c6abf3900d65d0cdc3";
-        
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onValue, remove, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // --- ตั้งค่า Firebase ของคุณที่นี่ ---
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        // ---------------------------------
+
+        let db;
+        const isSetup = firebaseConfig.apiKey !== "YOUR_API_KEY";
+
+        if (isSetup) {
+            const app = initializeApp(firebaseConfig);
+            db = getDatabase(app);
+        } else {
+            document.getElementById('setup-warning').classList.remove('hidden');
+            document.getElementById('loading-spinner').classList.add('hidden');
+        }
+
+        const USER_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // 1234
+        const ADMIN_HASH = "fe2592b42a727e977f055947385b709cc82b16b9a87f88c6abf3900d65d0cdc3"; // 4321
         let isAdmin = false;
 
         async function hashPassword(password) {
             const encoder = new TextEncoder();
             const data = encoder.encode(password);
             const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            return Array.from(new Uint8Array(hashBuffer))
-                        .map(b => b.toString(16).padStart(2, '0'))
-                        .join('');
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
         
-        async function checkPassword() {
+        window.checkPassword = async function() {
             const inputField = document.getElementById('password-input');
-            const input = inputField.value;
-            const error = document.getElementById('error-msg');
-            
-            const inputHash = await hashPassword(input);
+            const inputHash = await hashPassword(inputField.value);
             
             if (inputHash === USER_HASH || inputHash === ADMIN_HASH) {
                 isAdmin = (inputHash === ADMIN_HASH);
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('main-content').classList.remove('hidden');
-                loadMessages();
+                if (isSetup) loadMessages();
             } else {
-                error.classList.remove('hidden');
+                document.getElementById('error-msg').classList.remove('hidden');
                 inputField.value = '';
             }
-        }
+        };
 
-        // Support Enter key for login
-        document.getElementById('password-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') checkPassword();
-        });
-
-        function postMessage() {
+        window.postMessage = function() {
+            if (!isSetup) { alert('กรุณาตั้งค่า Firebase ก่อนครับ'); return; }
             const name = document.getElementById('user-name').value.trim();
             const msg = document.getElementById('user-msg').value.trim();
-            
-            if (!name || !msg) {
-                alert('กรุณากรอกชื่อและข้อความให้ครบถ้วน');
-                return;
-            }
+            if (!name || !msg) return alert('กรุณากรอกให้ครบ');
 
-            const newMessage = {
-                id: Date.now(),
+            const btn = document.getElementById('btn-post');
+            btn.disabled = true;
+
+            push(ref(db, 'messages'), {
                 name: name,
                 text: msg,
-                date: new Date().toLocaleString('th-TH')
-            };
+                date: new Date().toLocaleString('th-TH'),
+                timestamp: Date.now()
+            }).then(() => {
+                document.getElementById('user-name').value = '';
+                document.getElementById('user-msg').value = '';
+                btn.disabled = false;
+            }).catch(err => {
+                alert('เกิดข้อผิดพลาด: ' + err.message);
+                btn.disabled = false;
+            });
+        };
 
-            let messages = JSON.parse(localStorage.getItem('tpp_messages') || '[]');
-            messages.unshift(newMessage);
-            localStorage.setItem('tpp_messages', JSON.stringify(messages));
-
-            document.getElementById('user-name').value = '';
-            document.getElementById('user-msg').value = '';
-            renderMessages(messages);
-        }
-
-        function deleteMessage(id) {
-            if (!confirm('ยืนยันการลบข้อความนี้?')) return;
-            
-            let messages = JSON.parse(localStorage.getItem('tpp_messages') || '[]');
-            messages = messages.filter(m => m.id !== id);
-            localStorage.setItem('tpp_messages', JSON.stringify(messages));
-            renderMessages(messages);
-        }
+        window.deleteMessage = function(id) {
+            if (!confirm('ยืนยันการลบ?')) return;
+            remove(ref(db, 'messages/' + id));
+        };
 
         function loadMessages() {
-            const messages = JSON.parse(localStorage.getItem('tpp_messages') || '[]');
-            renderMessages(messages);
+            const messagesRef = ref(db, 'messages');
+            onValue(messagesRef, (snapshot) => {
+                const data = snapshot.val();
+                const messages = [];
+                for (let id in data) {
+                    messages.unshift({ id, ...data[id] });
+                }
+                messages.sort((a, b) => b.timestamp - a.timestamp);
+                renderMessages(messages);
+                document.getElementById('loading-spinner').classList.add('hidden');
+            });
         }
 
         function renderMessages(messages) {
             const list = document.getElementById('message-list');
             list.innerHTML = messages.map(m => `
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 animate-fade-in relative group">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative">
                     <div class="flex justify-between items-start mb-2">
                         <h4 class="font-bold navy-text">${escapeHtml(m.name)}</h4>
                         <div class="flex items-center space-x-3">
                             <span class="text-[10px] text-slate-400">${m.date}</span>
-                            ${isAdmin ? `
-                                <button onclick="deleteMessage(${m.id})" class="text-red-500 hover:text-red-700 transition p-1" title="ลบข้อความ">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            ` : ''}
+                            ${isAdmin ? `<button onclick="deleteMessage('${m.id}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>` : ''}
                         </div>
                     </div>
                     <p class="text-slate-600 sarabun leading-relaxed">${escapeHtml(m.text)}</p>
@@ -174,6 +212,8 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        document.getElementById('password-input').addEventListener('keypress', e => { if (e.key === 'Enter') window.checkPassword(); });
     </script>
 </body>
 </html>
