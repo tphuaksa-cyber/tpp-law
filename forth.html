@@ -89,26 +89,62 @@
 
             <div id="loading-spinner" class="flex justify-center py-8"><div class="loader"></div></div>
             <div id="message-list" class="space-y-4"></div>
+
+            <!-- Admin Visitor Logs -->
+            <div id="admin-logs" class="hidden mt-12 mb-12">
+                <div class="bg-white rounded-3xl shadow-xl p-8 border-2 border-amber-100">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 navy-bg rounded-xl flex items-center justify-center">
+                                <i class="fas fa-users text-white"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold navy-text">ผู้เข้าชมเว็บไซต์</h2>
+                                <p class="text-[10px] text-slate-400">Visitor Logs (50 รายการล่าสุด)</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <span id="log-count" class="bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full">0</span>
+                            <button onclick="clearAllLogs()" class="text-xs text-red-500 hover:bg-red-50 px-3 py-1 rounded-lg transition">ล้างทั้งหมด</button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead>
+                                <tr class="text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-50">
+                                    <th class="pb-4 font-semibold">เวลาที่เข้าชม</th>
+                                    <th class="pb-4 font-semibold">IP Address</th>
+                                    <th class="pb-4 font-semibold">หน้าเว็บ</th>
+                                    <th class="pb-4 text-right">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="log-list" class="divide-y divide-slate-50">
+                                <!-- Logs will be rendered here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getDatabase, ref, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-        import { firebaseConfig } from "./firebase-config.js";
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getDatabase(app);
+        import { setPersistence, browserSessionPersistence, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { ref, push, onValue, remove, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { auth, db } from "./firebase-init.js";
 
         let currentUser = null;
         const USER_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"; // 1234
 
+        // Force Session Persistence (Will require login after closing tab)
+        setPersistence(auth, browserSessionPersistence);
+
         // Listen for Auth changes
         onAuthStateChanged(auth, (user) => {
+            console.log("Auth State Changed: ", user ? "Logged In" : "Logged Out");
             currentUser = user;
             if (user) {
                 document.getElementById('admin-badge').classList.remove('hidden');
@@ -116,10 +152,13 @@
                 document.getElementById('login-overlay').classList.add('hidden');
                 document.getElementById('admin-modal').classList.add('hidden');
                 document.getElementById('main-content').classList.remove('hidden');
+                document.getElementById('admin-logs').classList.remove('hidden');
                 loadMessages();
+                loadLogs();
             } else {
                 document.getElementById('admin-badge').classList.add('hidden');
                 document.getElementById('btn-logout').classList.add('hidden');
+                document.getElementById('admin-logs').classList.add('hidden');
             }
         });
 
@@ -147,14 +186,18 @@
         };
 
         window.handleAdminLogin = function() {
-            const email = document.getElementById('admin-email').value;
+            const email = document.getElementById('admin-email').value.trim();
             const pass = document.getElementById('admin-password').value;
             const btn = document.getElementById('btn-admin-login');
+            
+            if (!email || !pass) return alert('กรุณากรอกอีเมลและรหัสผ่าน');
+            
             btn.disabled = true;
             btn.innerText = "กำลังเข้าสู่ระบบ...";
 
             signInWithEmailAndPassword(auth, email, pass)
                 .catch(err => {
+                    console.error('Login error:', err);
                     alert('ล็อกอินไม่สำเร็จ: ' + err.message);
                     btn.disabled = false;
                     btn.innerText = "ล็อกอินแอดมิน";
@@ -162,7 +205,10 @@
         };
 
         window.handleLogout = function() {
-            signOut(auth).then(() => location.reload());
+            signOut(auth).then(() => {
+                sessionStorage.clear();
+                location.reload();
+            });
         };
 
         window.postMessage = function() {
@@ -213,6 +259,53 @@
             `).join('');
         }
 
+        function loadLogs() {
+            console.log("Loading logs...");
+            onValue(ref(db, 'visitor_logs'), (snapshot) => {
+                const data = snapshot.val();
+                console.log("Logs data received: ", data ? Object.keys(data).length : 0);
+                const logs = [];
+                for (let id in data) { logs.unshift({ id, ...data[id] }); }
+                logs.sort((a, b) => b.timestamp - a.timestamp);
+                document.getElementById('log-count').innerText = logs.length;
+                renderLogs(logs.slice(0, 50)); 
+            }, (error) => {
+                console.error("Load logs failed: ", error);
+                alert("ไม่สามารถดึงข้อมูล Log ได้: " + error.message + "\nรบกวนตรวจสอบ Database Rules");
+            });
+        }
+
+        function renderLogs(logs) {
+            const list = document.getElementById('log-list');
+            if (logs.length === 0) {
+                list.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-400">ยังไม่มีข้อมูลการเข้าชม</td></tr>';
+                return;
+            }
+            list.innerHTML = logs.map(l => `
+                <tr>
+                    <td class="py-3 pr-4 text-slate-500 text-[10px]">${l.date || '-'}</td>
+                    <td class="py-3 pr-4 font-mono text-xs">${l.ip}</td>
+                    <td class="py-3 pr-4 text-xs text-slate-400 truncate max-w-[100px]" title="${l.path}">${l.path}</td>
+                    <td class="py-3 text-right">
+                        <button onclick="deleteLog('${l.id}')" class="text-red-300 hover:text-red-500"><i class="fas fa-times"></i></button>
+                    </td>
+                </tr>
+                <tr class="log-detail">
+                    <td colspan="4" class="pb-3 text-[10px] text-slate-300 italic truncate max-w-[400px]" title="${l.userAgent}">${l.userAgent}</td>
+                </tr>
+            `).join('');
+        }
+
+        window.deleteLog = function(id) {
+            remove(ref(db, 'visitor_logs/' + id));
+        };
+
+        window.clearAllLogs = function() {
+            if (confirm('ล้าง Log ทั้งหมด?')) {
+                set(ref(db, 'visitor_logs'), null);
+            }
+        };
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -221,5 +314,6 @@
 
         document.getElementById('password-input').addEventListener('keypress', e => { if (e.key === 'Enter') window.checkUserPassword(); });
     </script>
+    <script type="module" src="logger.js"></script>
 </body>
 </html>
